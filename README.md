@@ -2,7 +2,7 @@
 
 A daily end-of-day stock screener for US mid/large-cap equities that finds **Day-1 trigger events** in the Ichimoku Kinko Hyo system. Instead of producing the usual list of "stocks already in established uptrends," it classifies each passing stock into one of four buckets so you can act on fresh signals and skip late entries.
 
-The output is a live dashboard (Cowork artifact) that refreshes nightly via a scheduled task.
+The output is a live dashboard that refreshes each trading day — published to GitHub Pages by the included workflow (or runnable locally). It includes a "setup mix over time" chart showing how the BREAKOUT/RESUMPTION/MIXED/MATURE balance shifts day to day.
 
 ## What it does
 
@@ -38,9 +38,11 @@ ichimoku-daily-screener/
 │   └── daily-scan.yml     # cloud schedule: runs scanner + deploys to GitHub Pages
 ├── config.py              # ALL settings — paths, URLs, thresholds, universe
 ├── scanner.py             # main scanner — Yahoo fetch + Ichimoku + classification
-├── build_dashboard.py     # produces dashboard.html from snapshots/latest.json
+├── update_history.py      # archives each day's setup-mix counts to history/
+├── build_dashboard.py     # produces dashboard.html from snapshots + history
 ├── verify_ticker.py       # debug: day-by-day pass/fail table for any ticker
-├── snapshots/             # JSON snapshots (gitignored, regenerated)
+├── snapshots/             # full JSON snapshots (gitignored, regenerated)
+├── history/               # compact daily mix archive (committed by the workflow)
 ├── README.md              # this file
 ├── SETUP.md               # setup instructions (cloud + local)
 └── MASTER_PROMPT.md       # full spec to recreate the project from scratch

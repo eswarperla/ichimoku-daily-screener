@@ -213,6 +213,21 @@ HTML_TEMPLATE = r"""<!doctype html>
     color: #6b6b6b;
   }
   .footnote { font-size: 11.5px; color: #8a8a8a; margin-top: 18px; line-height: 1.55; }
+  .trend-section {
+    background: #fbfcfd;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px 16px 16px;
+    margin-bottom: 16px;
+  }
+  .trend-section h3 {
+    margin: 0 0 2px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .trend-section .trend-sub { font-size: 12px; color: #6b6b6b; margin: 0 0 10px; }
+  .trend-canvas-wrap { position: relative; height: 220px; }
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/theme/mermaid.min.css" integrity="sha384-jZvDSsmGB9oGGT/4l9bHXGoAv1OxvG/cFmSo0dZaSqmBgvQTKDBFAMftlXTmMbNW" crossorigin="anonymous">
 </head>
@@ -263,6 +278,12 @@ HTML_TEMPLATE = r"""<!doctype html>
     </div>
   </div>
 
+  <div class="trend-section" id="trendSection" style="display:none;">
+    <h3>Setup mix over time</h3>
+    <p class="trend-sub">How many stocks fell into each bucket on each trading day. A rising BREAKOUT share often marks the start of a new leg; a market dominated by MATURE means the move is already well underway.</p>
+    <div class="trend-canvas-wrap"><canvas id="trendChart"></canvas></div>
+  </div>
+
   <div class="controls">
     <label>Search: <input id="searchBox" type="text" placeholder="ticker or company name"></label>
     <label>Min streak: <input id="minStreak" type="number" min="1" value="1"></label>
@@ -301,9 +322,11 @@ HTML_TEMPLATE = r"""<!doctype html>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/gridjs.umd.js" integrity="sha384-/XXDzxe4FsGiAe50i/u9pY/Vy/uX654MHB1xoc1BJNnH1WXHhqHga9g3q5tF4gj7" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
 <script>
   const SNAPSHOT = __SNAPSHOT_JSON__;
+  const HISTORY  = __HISTORY_JSON__;
 
   const TYPE_RANK = { BREAKOUT: 0, RESUMPTION: 1, MIXED: 2, MATURE: 3 };
 
@@ -478,6 +501,57 @@ HTML_TEMPLATE = r"""<!doctype html>
   });
 
   applyFilters();
+
+  // ----- Setup-mix-over-time trend chart -----
+  function renderTrend() {
+    const hist = Array.isArray(HISTORY) ? HISTORY : [];
+    // Need at least 2 days to show a meaningful trend.
+    if (hist.length < 2 || typeof Chart === 'undefined') return;
+    const section = document.getElementById('trendSection');
+    const canvas  = document.getElementById('trendChart');
+    if (!section || !canvas) return;
+    section.style.display = '';
+
+    const labels = hist.map(h => h.asOfDate);
+    const series = (key) => hist.map(h => (h.byType && h.byType[key]) || 0);
+    const ds = (label, key, color) => ({
+      label, data: series(key),
+      backgroundColor: color, borderColor: color, borderWidth: 0,
+      stack: 'mix', maxBarThickness: 26,
+    });
+
+    new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          ds('Breakout',   'BREAKOUT',   '#10b981'),
+          ds('Resumption', 'RESUMPTION', '#3b82f6'),
+          ds('Mixed',      'MIXED',      '#f59e0b'),
+          ds('Mature',     'MATURE',     '#9ca3af'),
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { stacked: true, grid: { display: false },
+               ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, font: { size: 11 } } },
+          y: { stacked: true, beginAtZero: true,
+               grid: { color: '#eef0f3' }, ticks: { precision: 0, font: { size: 11 } },
+               title: { display: true, text: 'Stocks passing', font: { size: 11 } } },
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } },
+          tooltip: { callbacks: {
+            footer: (items) => 'Total: ' + items.reduce((s, i) => s + i.parsed.y, 0),
+          } },
+        },
+      },
+    });
+  }
+  renderTrend();
 </script>
 </body>
 </html>
@@ -501,6 +575,19 @@ def build_dashboard(snap_path: str = SNAP_PATH, out_path: str = OUT_PATH) -> str
 
     snapshot_json = json.dumps(snap, separators=(",", ":"))
 
+    # Load the daily history archive (compact aggregate counts per day) if
+    # present, so the dashboard can chart the setup mix over time. Absent or
+    # malformed file -> empty history (chart simply hides).
+    history = []
+    try:
+        with open(config.HISTORY_JSON, "r", encoding="utf-8") as hf:
+            loaded = json.load(hf)
+            if isinstance(loaded, list):
+                history = loaded
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        history = []
+    history_json = json.dumps(history, separators=(",", ":"))
+
     html = (HTML_TEMPLATE
         .replace("__SUBTITLE__", escape(subtitle))
         .replace("__ASOF__", escape(asof_pretty))
@@ -514,6 +601,7 @@ def build_dashboard(snap_path: str = SNAP_PATH, out_path: str = OUT_PATH) -> str
         .replace("__TV_EXCHANGE_MAP_JSON__", json.dumps(config.TV_EXCHANGE_MAP))
         .replace("__TV_URL_TEMPLATE_JSON__", json.dumps(config.TV_CHART_URL_TEMPLATE))
         .replace("__SNAPSHOT_JSON__", snapshot_json)
+        .replace("__HISTORY_JSON__", history_json)
     )
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

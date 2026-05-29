@@ -20,6 +20,15 @@ SNAPSHOTS_DIR  = os.path.join(PROJECT_DIR, "snapshots")
 LATEST_JSON    = os.path.join(SNAPSHOTS_DIR, "latest.json")
 DASHBOARD_HTML = os.path.join(PROJECT_DIR, "dashboard.html")
 
+# Daily history archive — a compact, version-controlled record of how many
+# stocks fell into each setup bucket per day, so the dashboard can chart how
+# the BREAKOUT/RESUMPTION/MIXED/MATURE mix shifts over time. Unlike the full
+# snapshots (gitignored, ephemeral), this small file IS committed to the repo
+# by the GitHub Actions workflow so history accrues across runs.
+HISTORY_DIR    = os.path.join(PROJECT_DIR, "history")
+HISTORY_JSON   = os.path.join(HISTORY_DIR, "history.json")
+HISTORY_MAX_DAYS = 365   # keep at most this many of the most recent days
+
 # Cowork artifact id (must match the id used when create_artifact was called)
 ARTIFACT_ID    = "ichimoku-daily-scanner"
 

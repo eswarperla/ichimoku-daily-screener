@@ -1,0 +1,23 @@
+# Generated data — not version-controlled
+snapshots/*.json
+!snapshots/.gitkeep
+
+# Generated dashboard HTML — rebuilt by build_dashboard.py
+dashboard.html
+dashboard_test.html
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

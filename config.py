@@ -34,6 +34,17 @@ FETCH_RANGE      = "1y"     # how much history to pull (need >=78 daily bars)
 FETCH_INTERVAL   = "1d"     # daily bars
 FETCH_TIMEOUT_S  = 15
 PARALLEL_WORKERS = 12
+
+# Retry/backoff for transient fetch failures (Yahoo rate-limits under load).
+# Total attempts = FETCH_RETRIES + 1. Backoff grows linearly per attempt.
+FETCH_RETRIES    = 2
+FETCH_BACKOFF_S  = 1.5
+
+# Data-coverage guard. A run is only trustworthy if we successfully fetched
+# data for at least this fraction of the universe. Below this, the scan refuses
+# to publish (exits non-zero) so a half-fetched universe never overwrites a
+# good dashboard — distinguishes "quiet market" from "data feed broken".
+MIN_DATA_COVERAGE = 0.90
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -141,7 +152,7 @@ NEM NFLX NI NKE NOC NOW NRG NSC NTAP NTRS NUE NVDA NVR NWS NWSA NXPI O ODFL OKE 
 ON ORCL ORLY OTIS OXY PANW PARA PAYC PAYX PCAR PCG PDD PEG PEP PFE PFG PG PGR PH PHM
 PKG PLD PLTR PM PNC PNR PNW PODD POOL PPG PPL PRU PSA PSX PTC PWR PYPL QCOM QQQ RCL
 REG REGN RF RIVN RJF RL RMD ROK ROL ROP ROST RSG RTX RVTY SBAC SBUX SCHW SHW SJM SLB
-SMCI SNA SNDK SNPS SO SOLV SOLS SPG SPGI SRE STE STLD STT STX STZ SW SWK SWKS SYF SYK
+SMCI SNA SNDK SNPS SO SOLV SPG SPGI SRE STE STLD STT STX STZ SW SWK SWKS SYF SYK
 SYY T TAP TDG TDY TEAM TECH TEL TER TFC TFX TGT TJX TMO TMUS TPL TPR TRGP TRMB TROW
 TRV TSCO TSLA TSN TT TTD TTWO TXN TXT TYL UAL UBER UDR UHS ULTA UNH UNP UPS URI USB V
 VICI VLO VLTO VMC VRSK VRSN VRTX VST VTR VTRS VZ WAB WAT WBA WBD WDAY WDC WEC WELL

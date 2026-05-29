@@ -32,23 +32,39 @@ import config
 # Universe + Yahoo settings all live in config.py
 UNIVERSE = config.UNIVERSE
 
+
+class FetchError(Exception):
+    """Raised when a ticker's data could not be fetched (network/rate-limit/bad
+    payload), as opposed to fetched-but-did-not-pass-the-filters. This lets the
+    scanner distinguish a quiet market from a broken data feed."""
+
+
 # ---------------------------------------------------------------------------
 # Yahoo Finance fetch
 # ---------------------------------------------------------------------------
 def fetch_yahoo(symbol: str, period: str | None = None) -> dict | None:
     """Return {'ts':[...], 'open':[...], 'high':[...], 'low':[...], 'close':[...],
-    'meta': {...}} or None on failure. Filters out bars with null OHLC."""
+    'meta': {...}} or None on failure. Filters out bars with null OHLC.
+
+    Retries transient failures with linear backoff (Yahoo rate-limits under
+    concurrent load); returns None only after exhausting all attempts."""
     # Yahoo uses '.' but URLs need '%2E' sometimes; keep as is for common cases.
     rng = period or config.FETCH_RANGE
     url = config.YAHOO_CHART_URL_TEMPLATE.format(
         symbol=symbol, range=rng, interval=config.FETCH_INTERVAL)
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": config.USER_AGENT})
-        with urllib.request.urlopen(req, timeout=config.FETCH_TIMEOUT_S) as r:
-            j = json.loads(r.read())
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError,
-            ConnectionError, json.JSONDecodeError) as e:
-        return None
+    j = None
+    for attempt in range(config.FETCH_RETRIES + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": config.USER_AGENT})
+            with urllib.request.urlopen(req, timeout=config.FETCH_TIMEOUT_S) as r:
+                j = json.loads(r.read())
+            break
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError,
+                ConnectionError, json.JSONDecodeError):
+            if attempt < config.FETCH_RETRIES:
+                time.sleep(config.FETCH_BACKOFF_S * (attempt + 1))
+            else:
+                return None
     try:
         result = j["chart"]["result"][0]
         ts = result["timestamp"]
@@ -346,7 +362,10 @@ def detect_candle_pattern(opens, highs, lows, closes, volumes):
 def scan_ticker(symbol: str) -> dict | None:
     data = fetch_yahoo(symbol)
     if data is None:
-        return None
+        # Could not get data — this is a fetch failure, NOT a filter reject.
+        # Raise so main() counts it toward the data-coverage guard instead of
+        # silently treating it like a stock that simply didn't pass.
+        raise FetchError(symbol)
     closes, highs, lows = data["close"], data["high"], data["low"]
     volumes = data["volume"]
     conv, base, sA, sB, sA_raw, sB_raw = ichimoku(highs, lows)
@@ -376,7 +395,7 @@ def scan_ticker(symbol: str) -> dict | None:
     pattern = detect_candle_pattern(opens, highs, lows, closes, volumes)
 
     last_ts = data["ts"][last_idx]
-    last_date = dt.datetime.utcfromtimestamp(last_ts).date().isoformat()
+    last_date = dt.datetime.fromtimestamp(last_ts, dt.timezone.utc).date().isoformat()
     return {
         "ticker": data["meta"]["symbol"],
         "name": data["meta"]["longName"],
@@ -410,7 +429,8 @@ def main(out_path: str, limit: int | None = None) -> None:
     start = time.time()
 
     results: list[dict] = []
-    failed: list[str] = []
+    fetch_failed: list[str] = []   # could not retrieve data (network/rate-limit)
+    errored: list[str] = []        # unexpected error during scan
     scanned = 0
 
     with ThreadPoolExecutor(max_workers=config.PARALLEL_WORKERS) as ex:
@@ -422,10 +442,26 @@ def main(out_path: str, limit: int | None = None) -> None:
                 res = fut.result()
                 if res:
                     results.append(res)
+            except FetchError:
+                fetch_failed.append(tk)
             except Exception:
-                failed.append(tk)
+                errored.append(tk)
             if scanned % 50 == 0:
-                print(f"  ... {scanned}/{len(universe)} scanned, {len(results)} pass", flush=True)
+                print(f"  ... {scanned}/{len(universe)} scanned, "
+                      f"{len(results)} pass, {len(fetch_failed)} fetch-fail", flush=True)
+
+    # ---- Data-coverage guard ----
+    # fetched = universe we actually got usable data for (everything except
+    # fetch failures). If too much of the universe failed to fetch, the result
+    # is untrustworthy — refuse to publish so a broken feed never overwrites a
+    # good dashboard.
+    fetched = len(universe) - len(fetch_failed)
+    coverage = fetched / len(universe) if universe else 0.0
+    if coverage < config.MIN_DATA_COVERAGE:
+        print(f"ABORT: only {fetched}/{len(universe)} tickers fetched "
+              f"({coverage:.1%} < {config.MIN_DATA_COVERAGE:.0%} required). "
+              f"Data feed likely degraded — NOT writing snapshot.", flush=True)
+        sys.exit(2)
 
     # Sort: BREAKOUT first (most interesting), then RESUMPTION, MIXED, MATURE last.
     # Within each bucket, freshest streak first then biggest %-above-Conv.
@@ -438,14 +474,24 @@ def main(out_path: str, limit: int | None = None) -> None:
     ))
     by_type = {k: sum(1 for r in results if r["setupType"] == k)
                for k in ("BREAKOUT", "RESUMPTION", "MIXED", "MATURE")}
+    # Use the most common last-bar date across passing stocks as the canonical
+    # "as of" date (robust to the occasional halted/stale ticker).
+    as_of = None
+    if results:
+        from collections import Counter
+        as_of = Counter(r["asOf"] for r in results).most_common(1)[0][0]
+
     snapshot = {
         "generatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "asOfDate": results[0]["asOf"] if results else None,
+        "asOfDate": as_of,
         "universeSize": len(universe),
         "scanned": scanned,
+        "fetched": fetched,
+        "coverage": round(coverage, 4),
         "byType": by_type,
         "passing": len(results),
-        "failed": len(failed),
+        "fetchFailed": len(fetch_failed),
+        "errored": len(errored),
         "results": results,
         "filters": [
             "Daily Conversion > Daily Base",
@@ -471,7 +517,9 @@ def main(out_path: str, limit: int | None = None) -> None:
         json.dump(snapshot, f, indent=2)
     elapsed = time.time() - start
     by_type_str = ", ".join(f"{k}={v}" for k, v in by_type.items())
-    print(f"Done in {elapsed:.1f}s — {snapshot['passing']} stocks passing ({by_type_str})", flush=True)
+    print(f"Done in {elapsed:.1f}s — {snapshot['passing']} stocks passing ({by_type_str}) "
+          f"| coverage {coverage:.1%} ({fetched}/{len(universe)}), "
+          f"{len(fetch_failed)} fetch-fail, {len(errored)} errored", flush=True)
     print(f"Wrote {out_path}", flush=True)
     return snapshot
 

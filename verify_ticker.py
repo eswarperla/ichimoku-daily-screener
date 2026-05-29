@@ -14,8 +14,10 @@ Examples:
   python verify_ticker.py TXN 10        # debug a near-miss
 """
 from __future__ import annotations
-import sys, datetime as dt
-sys.path.insert(0, __file__.rsplit("\\", 1)[0] if "\\" in __file__ else ".")
+import os, sys, datetime as dt
+# Make sure this script can import config/scanner regardless of the directory
+# it's launched from (cross-platform — no backslash assumptions).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import config
 from scanner import fetch_yahoo, ichimoku
 
@@ -48,7 +50,7 @@ def verify(ticker: str, n_bars: int = 12) -> None:
     for i in range(max(C, n - n_bars), n):
         if conv[i] is None or base[i] is None or sA[i] is None or sB[i] is None:
             continue
-        date = dt.datetime.utcfromtimestamp(ts[i]).date().isoformat()
+        date = dt.datetime.fromtimestamp(ts[i], dt.timezone.utc).date().isoformat()
         ct = max(sA[i], sB[i])
         c1 = conv[i] > base[i]
         c2 = base[i] > ct

@@ -1,0 +1,65 @@
+name: Daily Ichimoku Scan
+
+# Runs the scanner in the cloud and publishes the dashboard to GitHub Pages.
+# No local machine required — GitHub's runners have full network access to
+# Yahoo Finance, so this works even when your computer is off.
+
+on:
+  schedule:
+    # 22:00 UTC, Mon–Fri. US equities close 16:00 ET (20:00 UTC EDT / 21:00 UTC
+    # EST), so a 22:00 UTC run reliably has settled end-of-day data for that
+    # same trading day. (GitHub may delay scheduled runs under load.)
+    - cron: "0 22 * * 1-5"
+  workflow_dispatch: {}   # allows manual "Run workflow" from the Actions tab
+
+# Allow this workflow to publish to GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# If a run is already in progress, let the newer one finish and cancel the old.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run scanner
+        # Exits non-zero if data coverage falls below MIN_DATA_COVERAGE,
+        # which fails the job and leaves the previously published dashboard intact.
+        run: python scanner.py
+
+      - name: Build dashboard
+        run: python build_dashboard.py
+
+      - name: Stage site (dashboard.html -> index.html)
+        run: |
+          mkdir -p _site
+          cp dashboard.html _site/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

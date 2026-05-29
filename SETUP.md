@@ -10,6 +10,36 @@ The Python code itself is cross-platform — only the **paths**, the **`python` 
 - **Git** — to clone the repo.
 - **Cowork (Claude desktop app)** — installed and signed in. The artifact and scheduled task rely on Cowork's tool calls.
 
+## Cloud deployment (recommended) — GitHub Actions + Pages
+
+The most reliable way to run this is **not** on your own machine at all. The repo
+ships with `.github/workflows/daily-scan.yml`, which runs the scanner on GitHub's
+servers each weekday after the US close and publishes the dashboard to GitHub
+Pages as a permanent URL. Benefits over the local approach:
+
+- Runs even when your computer is off.
+- GitHub runners have full internet access — no proxy/firewall issues reaching Yahoo.
+- No local shell tool, no scheduled-task permission dance, no Cowork artifact required.
+- You get a bookmarkable live URL that refreshes itself.
+
+### One-time enable
+
+1. Push the repo to GitHub (it already lives at `eswarperla/ichimoku-daily-screener`).
+2. In the repo on GitHub: **Settings → Pages → Build and deployment → Source → "GitHub Actions"**.
+3. (Optional) Trigger the first run manually: **Actions tab → "Daily Ichimoku Scan" → "Run workflow"**.
+
+After the first successful run, your dashboard is live at:
+`https://eswarperla.github.io/ichimoku-daily-screener/`
+
+The workflow's schedule is `0 22 * * 1-5` (22:00 UTC, Mon–Fri) — after the US market
+close, so each run has settled end-of-day data. The scanner aborts (and the old
+dashboard stays live) if the data feed is degraded — see `MIN_DATA_COVERAGE` in `config.py`.
+
+The rest of this document covers the **local** workflow, which is still fully
+supported if you'd rather run it on your own machine.
+
+---
+
 ## 1. Clone the repository
 
 ```sh

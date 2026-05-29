@@ -34,15 +34,27 @@ Tickers are clickable — they open TradingView's daily-timeframe chart in a new
 
 ```
 ichimoku-daily-screener/
+├── .github/workflows/
+│   └── daily-scan.yml     # cloud schedule: runs scanner + deploys to GitHub Pages
 ├── config.py              # ALL settings — paths, URLs, thresholds, universe
 ├── scanner.py             # main scanner — Yahoo fetch + Ichimoku + classification
 ├── build_dashboard.py     # produces dashboard.html from snapshots/latest.json
 ├── verify_ticker.py       # debug: day-by-day pass/fail table for any ticker
 ├── snapshots/             # JSON snapshots (gitignored, regenerated)
 ├── README.md              # this file
-├── SETUP.md               # fresh-machine setup instructions
+├── SETUP.md               # setup instructions (cloud + local)
 └── MASTER_PROMPT.md       # full spec to recreate the project from scratch
 ```
+
+## Running it
+
+Two supported ways to run the daily scan:
+
+- **GitHub Actions + Pages (recommended)** — the included workflow runs the
+  scanner in the cloud each weekday and publishes a live dashboard URL. No local
+  machine needed. See [SETUP.md](SETUP.md#cloud-deployment-recommended--github-actions--pages).
+- **Locally** — run `python scanner.py && python build_dashboard.py` and open
+  `dashboard.html`, optionally wired to a Cowork artifact + scheduled task. See [SETUP.md](SETUP.md).
 
 ## Quick start
 

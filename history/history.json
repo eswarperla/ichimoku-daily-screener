@@ -1,0 +1,15 @@
+[
+  {
+    "asOfDate": "2026-05-29",
+    "generatedAt": "2026-05-29T17:59:04.439041+00:00",
+    "passing": 51,
+    "fetched": 508,
+    "coverage": 0.975,
+    "byType": {
+      "BREAKOUT": 20,
+      "RESUMPTION": 7,
+      "MIXED": 14,
+      "MATURE": 10
+    }
+  }
+]

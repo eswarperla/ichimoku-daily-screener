@@ -10,9 +10,11 @@ import os
 # ---------------------------------------------------------------------------
 # 1. PATHS
 # ---------------------------------------------------------------------------
-# Root directory of the project. On a fresh machine, set this to wherever you
-# cloned the repo. All other paths are derived from it.
-PROJECT_DIR    = r"D:\StockScreener\Stock Screener"
+# PROJECT_DIR defaults to the directory containing this config.py file.
+# Works cross-platform out of the box — Windows, macOS, Linux — wherever you
+# clone the repo, that's where the project operates. Only override this if
+# you want data files written somewhere else.
+PROJECT_DIR    = os.path.dirname(os.path.abspath(__file__))
 
 SNAPSHOTS_DIR  = os.path.join(PROJECT_DIR, "snapshots")
 LATEST_JSON    = os.path.join(SNAPSHOTS_DIR, "latest.json")

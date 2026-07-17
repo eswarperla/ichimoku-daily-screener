@@ -427,5 +427,18 @@
       "MIXED": 27,
       "MATURE": 14
     }
+  },
+  {
+    "asOfDate": "2026-07-17",
+    "generatedAt": "2026-07-17T22:41:21.341714+00:00",
+    "passing": 85,
+    "fetched": 505,
+    "coverage": 0.9693,
+    "byType": {
+      "BREAKOUT": 51,
+      "RESUMPTION": 1,
+      "MIXED": 19,
+      "MATURE": 14
+    }
   }
 ]

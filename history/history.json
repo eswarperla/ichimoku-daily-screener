@@ -1001,6 +1001,19 @@
     }
   },
   {
+    "asOfDate": "2026-09-21",
+    "generatedAt": "2026-09-24T00:09:55.912021+00:00",
+    "passing": 13,
+    "fetched": 503,
+    "coverage": 0.9655,
+    "byType": {
+      "BREAKOUT": 12,
+      "RESUMPTION": 0,
+      "MIXED": 0,
+      "MATURE": 1
+    }
+  },
+  {
     "asOfDate": "2026-09-22",
     "generatedAt": "2026-09-22T23:56:10.697998+00:00",
     "passing": 16,

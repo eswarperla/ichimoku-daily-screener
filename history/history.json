@@ -1184,12 +1184,12 @@
   },
   {
     "asOfDate": "2026-10-15",
-    "generatedAt": "2026-10-15T23:59:29.596995+00:00",
-    "passing": 40,
+    "generatedAt": "2026-10-17T00:04:56.381936+00:00",
+    "passing": 41,
     "fetched": 502,
     "coverage": 0.9635,
     "byType": {
-      "BREAKOUT": 31,
+      "BREAKOUT": 32,
       "RESUMPTION": 1,
       "MIXED": 3,
       "MATURE": 5
